@@ -11,7 +11,7 @@ class CustomerOrder(BaseModel):
 
 # 2. OUTGOING GUARD (Inspects what our AI Chef sends back out!)
 class RetentionResponse(BaseModel):
-    customer_id: str
+    customer_id: str = Field(..., min_length=4, description="Must be at least 4 characters")
     status: Literal["DANGER", "SAFE"]
     discount_offered_pct: int = Field(..., ge=0, le=30)
     policy_clause_used: str
