@@ -13,6 +13,6 @@ class CustomerOrder(BaseModel):
 class RetentionResponse(BaseModel):
     customer_id: str = Field(..., min_length=4, description="Must be at least 4 characters")
     status: Literal["DANGER", "SAFE"]
-    discount_offered_pct: int = Field(..., ge=0, le=30)
+    discount_offered_pct: int = Field(..., ge=0, le=20, description="Discount must be between 0 and 20 , Never exceed 20%")
     policy_clause_used: str
     draft_email: str

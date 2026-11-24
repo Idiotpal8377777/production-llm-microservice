@@ -1,43 +1,41 @@
-# app/core/chef.py 
-import asyncio
+from google import genai 
+from google.genai import types 
 from app.core.config import settings
-from app.schemas.order import CustomerOrder, RetentionResponse
+from app.schemas.order import CustomerOrder , RetentionResponse
 
-class RetentionAIService:
-    def __init__(self) -> None:
-        self.model_name = settings.APP_VERSION
+class RetentionAIresponse:
+    def __init__(self)->None:
+        self.model_name = "gemini-3.5-flash-lite"
+        self.client = genai.Client(api_key=settings.LLM_API_KEY)
 
-    async def generate_retention_plan_async(
-        self, payload: CustomerOrder
-    ) -> RetentionResponse:
-        """
-        Asynchronous core business workflow evaluating churn + sentiment.
-        Uses asyncio.sleep to simulate non-blocking LLM network latency.
-        """
-        # Simulate an asynchronous LLM or vector DB network call
-        await asyncio.sleep(0.5)
+    async def airesponse(
+        self, payload : CustomerOrder ) -> RetentionResponse:
 
-        if payload.churn_score > 0.7 or payload.sentiment == "critical":
-            discount = 20 if payload.churn_score > 0.85 else 15
-            clause = "RET-POL-4.2 (High-Risk Retention Credit)"
-            email = (
-                f"Hi {payload.customer_id}, we noticed your urgent ticket. "
-                f"Per policy [{clause}], we have applied an immediate {discount}% credit."
+
+        user_prompt = f"Customer ID : {payload.customer_id},Churn score:{payload.churn_score},sentiment:{payload.sentiment},ticket text:{payload.ticket_text}."
+
+
+        system_prompt = f"You are a customer retention expert."
+        f"You will be given a customer ID, churn score, sentiment, and ticket text."
+        f"If the churn score is above 0.7 or the sentiment is 'citical' set status to 'DANGER' and offer 15-20% discount , DO NOT EXCEED 20% discount. "
+        f"Otherwise set status to 'SAFE' and offer 0% discount."
+
+
+        response = await self.client.aio.models.generate_content(
+            model=self.model_name, 
+            contents = user_prompt,
+            config = types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type ="application/json",
+                response_schema = RetentionResponse
+
+
             )
-            return RetentionResponse(
-                customer_id=payload.customer_id,
-                status="DANGER",
-                discount_offered_pct=discount,
-                policy_clause_used=clause,
-                draft_email=email,
-            )
 
-        return RetentionResponse(
-            customer_id=payload.customer_id,
-            status="SAFE",
-            discount_offered_pct=0,
-            policy_clause_used="NONE",
-            draft_email="No discount required. Routed to standard queue.",
         )
 
-retention_service = RetentionAIService()
+
+        return response.parsed # type: ignore
+
+retension_service = RetentionAIresponse()
+                     
