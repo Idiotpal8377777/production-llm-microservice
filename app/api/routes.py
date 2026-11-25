@@ -1,7 +1,7 @@
 # app/api/routes.py
 from fastapi import APIRouter, status
 from app.schemas.order import CustomerOrder, RetentionResponse
-from app.core.chef import retension_service 
+from app.core.chef import RetensionService 
 
 router = APIRouter()
 
@@ -13,4 +13,4 @@ router = APIRouter()
 )
 async def check_customer(order: CustomerOrder) -> RetentionResponse:
     # Await the async service call so FastAPI can handle other requests concurrently
-    return await retension_service.airesponse(payload=order)
+    return await RetensionService().airesponse(payload=order)
