@@ -2,6 +2,7 @@
 from fastapi import APIRouter, status
 from app.schemas.order import CustomerOrder, RetentionResponse
 from app.core.chef import RetensionService 
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -14,3 +15,13 @@ router = APIRouter()
 async def check_customer(order: CustomerOrder) -> RetentionResponse:
     # Await the async service call so FastAPI can handle other requests concurrently
     return await RetensionService().airesponse(payload=order)
+
+
+
+@router.get("/health", status_code=status.HTTP_200_OK)
+async def health_check() -> dict:
+    return {
+        "status": "ok",
+        "app_name": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+    }

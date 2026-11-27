@@ -5,6 +5,8 @@ from app.schemas.order import CustomerOrder, RetentionResponse
 from tenacity import retry, stop_after_attempt, wait_exponential , retry_if_exception_type
 import asyncio 
 from fastapi import HTTPException 
+from app.core.logger import logger
+import time 
 
 
 class RetensionService:
@@ -20,7 +22,7 @@ class RetensionService:
         reraise = True
     )
 
-    async def generate_response_with_retry(self , model_name , user_prompt , system_prompt ) -> RetentionResponse:
+    async def generate_response_with_retry(self ,model_name,user_prompt , system_prompt ) -> RetentionResponse:
 
         plan = await asyncio.wait_for(
             self.client.aio.models.generate_content(
@@ -35,7 +37,7 @@ class RetensionService:
     
         timeout=15)
 
-        return plan.parsed  # type: ignore 
+        return plan  # type: ignore 
 
     async def airesponse(self , payload : CustomerOrder) -> RetentionResponse:
 
@@ -52,23 +54,49 @@ class RetensionService:
 
 
 
-        last_exception = None 
+        last_error = None 
         for model in self.models:
+            start_time = time.perf_counter()
             try:
                 response = await self.generate_response_with_retry(model , user_prompt , system_prompt )
-                if response.discount_offered_pct > 20:
-                    response.discount_offered_pct = 20
-                return response 
+                latency_ms = round((time.perf_counter() - start_time)*1000 , 2)
+                plan = response.parsed   # type: ignore 
+                if plan.discount_offered_pct > 20:
+                    plan.discount_offered_pct = 20
 
-            except (errors.APIError , asyncio.TimeoutError) as e:
-                print(f"[WARN] Model {model} failed after retries: {e}")
-                last_exception = e 
-                continue 
+                usage = response.usage_metadata # type: ignore
+                logger.info("llm call success ", extra = { 
+                    "customer_id": payload.customer_id,
+                    "model" :model,
+                    "latency_ms": latency_ms,
+                    "prompt_tokens": usage.prompt_token_count if usage else 0,
+                     "output_tokens": usage.candidates_token_count if usage else 0,
+                      "total_tokens": usage.total_token_count if usage else 0,
+                     "status": plan.status,
+                     "discount_pct": plan.discount_offered_pct, 
+                                          })
+
+                return plan 
 
 
-        raise HTTPException(status_code = 503 ,
-                           detail=f"All LLM models unavailable. Last error: {str(last_exception)}", )
+            except (errors.ServerError, asyncio.TimeoutError) as e:
+                latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                logger.warning(
+                    "llm_model_failed",
+                    extra={
+                        "data": {
+                            "customer_id": payload.customer_id,
+                            "model": model,
+                            "latency_ms": latency_ms,
+                            "error": repr(e),
+                        }
+                    },
+                )
+                last_error = e
+                continue
+                
 
+           
 
 
 
